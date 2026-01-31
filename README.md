@@ -1,16 +1,81 @@
-# React + Vite
+# ⚡ VibeSRM
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+**Campusing Made Smart.**  
+A premium, interactive Smart Campus Assistant designed to elevate your university experience with real-time insights, social connections, and a stunning "Midnight Neon" aesthetic.
 
-Currently, two official plugins are available:
+---
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## 🚀 Features
 
-## React Compiler
+### 🍱 Bento Grid Dashboard
+A modern, responsive dashboard layout that puts everything you need at a glance.
+- **Live Occupancy**: Real-time tracking of libraries, gyms, and cafes.
+- **Weekly Streaks**: Gamified stat tracking for your study sessions.
+- **Quick Actions**: One-click check-ins and status updates.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+### 🗺️ Interactive Campus Map
+A fully immersive SVG-based map experience.
+- **Visual Hotspots**: See where the vibe is with pulsing color-coded indicators.
+- **Smart Filtering**: Toggle between Study zones, Food spots, and Gyms.
+- **Instant Navigation**: Get details and directions instantly.
 
-## Expanding the ESLint configuration
+### 👥 "Squad" Social Hub
+Stay connected with your campus circle.
+- **Study Buddies**: See where your friends are studying in real-time.
+- **Ping System**: Nudge your squad to join you for a coffee or study session.
+- **Community Groups**: Discover and join trending campus communities.
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+### 💬 Integrated Chat
+Seamless communication for your study groups.
+- **Real-time Messaging**: Coordinate meetups without leaving the app.
+- **Group Channels**: Dedicated spaces for your classes and clubs.
+
+---
+
+## 🛠️ Tech Stack
+
+Built with a focus on performance and premium design.
+
+- **Frontend**: [React](https://react.dev/) + [Vite](https://vitejs.dev/)
+- **Styling**: [Tailwind CSS](https://tailwindcss.com/)
+- **Animations**: [Framer Motion](https://www.framer.com/motion/)
+- **Icons**: [Lucide React](https://lucide.dev/)
+- **Font**: Google Fonts (Space Grotesk & Inter)
+
+---
+
+## ⚡ Getting Started
+
+1.  **Clone the repository**
+    ```bash
+    git clone https://github.com/YUVRAJ-SINGH-3178/VibeSRM.git
+    cd VibeSRM
+    ```
+
+2.  **Install dependencies**
+    ```bash
+    npm install
+    ```
+
+3.  **Run the development server**
+    ```bash
+    npm run dev
+    ```
+
+4.  **Build for production**
+    ```bash
+    npm run build
+    ```
+
+---
+
+## 🎨 Design Philosophy
+
+VibeSRM abandons the boring, generic "admin panel" look for a **top-tier, app-like experience**.
+- **Dark Mode First**: Deep charcoal backgrounds (`#050507`) reduce eye strain.
+- **Glassmorphism**: Subtle frosting and borders for depth.
+- **Micro-interactions**: Every button and card feels alive.
+
+---
+
+Made with 💜 by Yuvraj Singh
