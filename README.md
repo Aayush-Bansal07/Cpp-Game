@@ -4,9 +4,13 @@ A simple 3D game built with OpenGL, GLEW, and GLFW that renders a rotating cube 
 
 ## Features
 
+- Modern OpenGL 3.3 core pipeline with shaders
 - 3D cube rendering with depth testing
+- Textured cubes with basic lighting
+- Multiple objects in the scene
 - Smooth keyboard-based movement controls
-- Uses legacy OpenGL fixed-function pipeline
+- Mouse-look camera system
+- Collision detection with cubes
 - Window management with GLFW
 
 ## Prerequisites
@@ -67,10 +71,17 @@ game.exe
 
 ## Controls
 
-- **W** - Move forward (increase Z position)
-- **S** - Move backward (decrease Z position)
-- **A** - Move left (decrease X position)
-- **D** - Move right (increase X position)
+- **W** - Move forward
+- **S** - Move backward
+- **A** - Move left
+- **D** - Move right
+- **Space** - Move up
+- **Left Shift** - Move down
+- **Mouse** - Look around
+- **Q / E** - Rotate cubes around Y-axis
+- **R / F** - Rotate cubes around X-axis
+- **Z / C** - Rotate cubes around Z-axis
+- **Esc** - Exit
 
 ## Code Structure
 
@@ -82,19 +93,17 @@ game.exe
 
 ## Notes
 
-- This project uses the legacy OpenGL fixed-function pipeline (immediate mode)
-- For modern OpenGL applications, consider using shaders and vertex buffer objects
-- The cube is centered at the origin (0, 0, 0)
+- This project uses the modern OpenGL pipeline (shaders, VAO/VBO)
+- The cubes are centered at their positions with size 1x1x1
 - Depth testing is enabled for proper 3D rendering
 
 ## Future Improvements
 
-- Add rotation controls
-- Implement modern OpenGL with shaders
-- Add lighting and textures
-- Camera system with mouse look
-- Multiple objects in the scene
-- Collision detection
+- Add skybox and environment lighting
+- Add specular highlights and materials
+- Add textures from image files
+- Implement object picking and interactions
+- Add physics-based collisions
 
 ## License
 
