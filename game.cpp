@@ -229,7 +229,7 @@ int main() {
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
-    GLFWwindow* window = glfwCreateWindow(800, 600, "3D Game", nullptr, nullptr);
+    GLFWwindow* window = glfwCreateWindow(1600, 900, "3D Overworld", nullptr, nullptr);
     if (!window) {
         glfwTerminate();
         return -1;
@@ -308,6 +308,30 @@ int main() {
     glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(6 * sizeof(float)));
     glEnableVertexAttribArray(2);
 
+    float groundVertices[] = {
+        // positions            // normals        // texcoords
+        -1.0f, 0.0f, -1.0f,      0.0f, 1.0f, 0.0f,  0.0f, 0.0f,
+         1.0f, 0.0f, -1.0f,      0.0f, 1.0f, 0.0f,  8.0f, 0.0f,
+         1.0f, 0.0f,  1.0f,      0.0f, 1.0f, 0.0f,  8.0f, 8.0f,
+
+        -1.0f, 0.0f, -1.0f,      0.0f, 1.0f, 0.0f,  0.0f, 0.0f,
+         1.0f, 0.0f,  1.0f,      0.0f, 1.0f, 0.0f,  8.0f, 8.0f,
+        -1.0f, 0.0f,  1.0f,      0.0f, 1.0f, 0.0f,  0.0f, 8.0f
+    };
+
+    GLuint groundVAO = 0, groundVBO = 0;
+    glGenVertexArrays(1, &groundVAO);
+    glGenBuffers(1, &groundVBO);
+    glBindVertexArray(groundVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, groundVBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(groundVertices), groundVertices, GL_STATIC_DRAW);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(3 * sizeof(float)));
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(6 * sizeof(float)));
+    glEnableVertexAttribArray(2);
+
     std::string vertexShader = R"(
         #version 330 core
         layout (location = 0) in vec3 aPos;
@@ -341,15 +365,31 @@ int main() {
         uniform vec3 uLightDir;
         uniform vec3 uViewPos;
         uniform sampler2D uTexture;
+        uniform vec3 uColorTint;
+        uniform vec3 uFogColor;
+        uniform float uFogDensity;
 
         void main() {
             vec3 norm = normalize(Normal);
             vec3 lightDir = normalize(-uLightDir);
+            vec3 viewDir = normalize(uViewPos - FragPos);
+            vec3 reflectDir = reflect(-lightDir, norm);
+
             float diff = max(dot(norm, lightDir), 0.0);
-            vec3 ambient = vec3(0.2);
+            float spec = pow(max(dot(viewDir, reflectDir), 0.0), 32.0);
+
+            vec3 ambient = vec3(0.15);
             vec3 diffuse = diff * vec3(0.8);
-            vec3 color = (ambient + diffuse) * texture(uTexture, TexCoord).rgb;
-            FragColor = vec4(color, 1.0);
+            vec3 specular = spec * vec3(0.6);
+
+            vec3 albedo = texture(uTexture, TexCoord).rgb * uColorTint;
+            vec3 lit = (ambient + diffuse + specular) * albedo;
+
+            float distanceToCamera = length(uViewPos - FragPos);
+            float fogFactor = clamp(exp(-pow(distanceToCamera * uFogDensity, 1.5)), 0.0, 1.0);
+            vec3 fogged = mix(uFogColor, lit, fogFactor);
+
+            FragColor = vec4(fogged, 1.0);
         }
     )";
 
@@ -382,8 +422,24 @@ int main() {
         {0.0f, 0.0f, 0.0f},
         {2.0f, 0.0f, -3.0f},
         {-2.0f, 0.0f, -4.0f},
-        {0.0f, 1.5f, -2.0f}
+        {0.0f, 1.5f, -2.0f},
+        {3.5f, 0.0f, 1.5f},
+        {-3.5f, 0.0f, 2.0f},
+        {1.5f, 0.0f, 3.5f},
+        {-1.5f, 0.0f, 3.0f},
+        {4.0f, 0.0f, -5.0f},
+        {-4.0f, 0.0f, -5.5f}
     };
+
+    std::vector<Vec3> colorPalette = {
+        {1.0f, 0.95f, 0.9f},
+        {0.8f, 0.9f, 1.0f},
+        {0.9f, 1.0f, 0.8f},
+        {1.0f, 0.85f, 0.7f}
+    };
+
+    Vec3 groundScale{40.0f, 1.0f, 40.0f};
+    Vec3 groundTint{0.65f, 0.85f, 0.65f};
 
     Vec3 cubeRotation{0.0f, 0.0f, 0.0f};
     float cubeRotationSpeed = 1.8f;
@@ -424,19 +480,23 @@ int main() {
             }
         }
 
-        glClearColor(0.08f, 0.08f, 0.12f, 1.0f);
+        int width = 1600;
+        int height = 900;
+        glfwGetFramebufferSize(window, &width, &height);
+        glViewport(0, 0, width, height);
+
+        glClearColor(0.05f, 0.08f, 0.12f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        int width = 800;
-        int height = 600;
-        glfwGetFramebufferSize(window, &width, &height);
         float aspect = static_cast<float>(width) / static_cast<float>(height);
-        Mat4 projection = perspective(45.0f * 3.14159265f / 180.0f, aspect, 0.1f, 100.0f);
+        Mat4 projection = perspective(45.0f * 3.14159265f / 180.0f, aspect, 0.1f, 140.0f);
         Mat4 view = lookAt(cameraPos, add(cameraPos, cameraFront), cameraUp);
 
         glUseProgram(program);
-        glUniform3f(glGetUniformLocation(program, "uLightDir"), -0.2f, -1.0f, -0.3f);
+        glUniform3f(glGetUniformLocation(program, "uLightDir"), -0.25f, -1.0f, -0.35f);
         glUniform3f(glGetUniformLocation(program, "uViewPos"), cameraPos.x, cameraPos.y, cameraPos.z);
+        glUniform3f(glGetUniformLocation(program, "uFogColor"), 0.35f, 0.45f, 0.65f);
+        glUniform1f(glGetUniformLocation(program, "uFogDensity"), 0.03f);
         glUniformMatrix4fv(glGetUniformLocation(program, "uView"), 1, GL_FALSE, view.m);
         glUniformMatrix4fv(glGetUniformLocation(program, "uProjection"), 1, GL_FALSE, projection.m);
 
@@ -444,12 +504,20 @@ int main() {
         glBindTexture(GL_TEXTURE_2D, texture);
         glUniform1i(glGetUniformLocation(program, "uTexture"), 0);
 
+        glBindVertexArray(groundVAO);
+        Mat4 groundModel = multiply(translate({0.0f, -1.0f, 0.0f}), scale(groundScale));
+        glUniformMatrix4fv(glGetUniformLocation(program, "uModel"), 1, GL_FALSE, groundModel.m);
+        glUniform3f(glGetUniformLocation(program, "uColorTint"), groundTint.x, groundTint.y, groundTint.z);
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+
         glBindVertexArray(VAO);
         for (size_t i = 0; i < cubePositions.size(); ++i) {
             Vec3 pos = cubePositions[i];
+            Vec3 tint = colorPalette[i % colorPalette.size()];
             Mat4 model = multiply(translate(pos), multiply(rotateY(cubeRotation.y + static_cast<float>(i) * 0.6f),
                              multiply(rotateX(cubeRotation.x), rotateZ(cubeRotation.z))));
             glUniformMatrix4fv(glGetUniformLocation(program, "uModel"), 1, GL_FALSE, model.m);
+            glUniform3f(glGetUniformLocation(program, "uColorTint"), tint.x, tint.y, tint.z);
             glDrawArrays(GL_TRIANGLES, 0, 36);
         }
 
@@ -457,6 +525,8 @@ int main() {
         glfwPollEvents();
     }
 
+    glDeleteVertexArrays(1, &groundVAO);
+    glDeleteBuffers(1, &groundVBO);
     glDeleteVertexArrays(1, &VAO);
     glDeleteBuffers(1, &VBO);
     glDeleteProgram(program);
