@@ -74,4 +74,4 @@ game.exe    # Windows
 
 ## License
 
-Educational sample; feel free to modify and experiment.
+No License 😔
