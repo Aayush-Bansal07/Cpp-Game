@@ -1,110 +1,77 @@
-# 3D OpenGL Game
+# 3D Overworld (OpenGL)
 
-A simple 3D game built with OpenGL, GLEW, and GLFW that renders a rotating cube you can move around.
+A small first-person overworld scene built with modern OpenGL (3.3 core), GLEW, and GLFW. You can explore a tiled ground, walk around tinted cubes, and see simple lighting with fog for depth.
 
 ## Features
 
-- Modern OpenGL 3.3 core pipeline with shaders
-- 3D cube rendering with depth testing
-- Textured cubes with basic lighting
-- Multiple objects in the scene
-- Smooth keyboard-based movement controls
-- Mouse-look camera system
-- Collision detection with cubes
-- Window management with GLFW
+- 1600x900 window with dynamic viewport sizing
+- Textured, lit cubes and a large ground plane
+- Ambient + diffuse + specular lighting with per-object color tints
+- Exponential fog for atmospheric depth
+- Mouse-look camera with collision against world props
+- Basic checkerboard procedural texture (replaceable with real assets)
 
 ## Prerequisites
 
-You need to have the following libraries installed:
+- OpenGL 3.3 capable GPU/driver
+- GLFW3 (window + input)
+- GLEW (extension loading)
 
-- **GLFW3** - Window and input handling
-- **GLEW** - OpenGL Extension Wrangler
-- **OpenGL** - Graphics rendering
+### Install (Linux/macOS)
 
-### Installing Dependencies
-
-**Ubuntu/Debian:**
 ```bash
-sudo apt-get update
-sudo apt-get install libglfw3-dev libglew-dev libgl1-mesa-dev
+sudo apt-get update && sudo apt-get install -y libglfw3-dev libglew-dev libgl1-mesa-dev   # Debian/Ubuntu
+sudo dnf install -y glfw-devel glew-devel mesa-libGL-devel                                # Fedora/RHEL
+brew install glfw glew                                                                    # macOS (Homebrew)
 ```
 
-**Fedora/RHEL:**
+### Install (Windows)
+
+- Grab prebuilt binaries: [GLFW](https://www.glfw.org/) and [GLEW](http://glew.sourceforge.net/)
+- Link against `glfw3`, `glew32`, and `opengl32` in your toolchain
+
+## Build
+
+Assuming source file is `game.cpp` in the project root.
+
 ```bash
-sudo dnf install glfw-devel glew-devel mesa-libGL-devel
+g++ -std=c++17 -O2 -o game game.cpp -lGL -lGLEW -lglfw -lm               # Linux
+g++ -std=c++17 -O2 -o game game.cpp -framework OpenGL -lglew -lglfw      # macOS
+g++ -std=c++17 -O2 -o game.exe game.cpp -lglfw3 -lglew32 -lopengl32 -lgdi32  # Windows (MinGW)
 ```
 
-**macOS (with Homebrew):**
-```bash
-brew install glfw glew
-```
-
-**Windows:**
-- Download GLFW from [glfw.org](https://www.glfw.org/)
-- Download GLEW from [glew.sourceforge.net](http://glew.sourceforge.net/)
-- Follow their installation instructions
-
-## Building
-
-### Linux/macOS
+## Run
 
 ```bash
-g++ -o game main.cpp -lGL -lGLEW -lglfw -lm
-```
-
-### Windows (MinGW)
-
-```bash
-g++ -o game.exe main.cpp -lglfw3 -lglew32 -lopengl32 -lgdi32
-```
-
-## Running
-
-```bash
-./game
-```
-
-On Windows:
-```bash
-game.exe
+./game      # Linux/macOS
+game.exe    # Windows
 ```
 
 ## Controls
 
-- **W** - Move forward
-- **S** - Move backward
-- **A** - Move left
-- **D** - Move right
-- **Space** - Move up
-- **Left Shift** - Move down
-- **Mouse** - Look around
-- **Q / E** - Rotate cubes around Y-axis
-- **R / F** - Rotate cubes around X-axis
-- **Z / C** - Rotate cubes around Z-axis
-- **Esc** - Exit
+- W / A / S / D: Move
+- Space / Left Shift: Move up / down
+- Mouse: Look around
+- Q / E: Rotate cubes (Y axis)
+- R / F: Rotate cubes (X axis)
+- Z / C: Rotate cubes (Z axis)
+- Esc: Quit
 
-## Code Structure
+## Technical Notes
 
-- Window creation: 800x600 pixels
-- Initial camera position: (0, 0, -5)
-- Cube size: 2x2x2 units
-- Movement speed: 0.05 units per frame
-- Color: Light blue (RGB: 0.2, 0.7, 1.0)
+- Ground: tiled plane scaled to 40x40 with its own color tint
+- Props: palette-tinted cubes with basic sphere-AABB camera collision
+- Lighting: single directional light; Phong specular; per-object tint
+- Fog: exponential; tweak density via `uFogDensity` uniform (default 0.03)
+- Texture: procedural 64x64 checker; swap in real textures by replacing the upload code
 
-## Notes
+## Next Ideas
 
-- This project uses the modern OpenGL pipeline (shaders, VAO/VBO)
-- The cubes are centered at their positions with size 1x1x1
-- Depth testing is enabled for proper 3D rendering
-
-## Future Improvements
-
-- Add skybox and environment lighting
-- Add specular highlights and materials
-- Add textures from image files
-- Implement object picking and interactions
-- Add physics-based collisions
+- Skybox and sun/sky gradients
+- Real texture assets (grass, rocks, crates)
+- Simple pickups or triggers in the overworld
+- Post-processing (bloom/tonemap) if you extend the pipeline
 
 ## License
 
-This is a simple demonstration project for educational purposes.
+Educational sample; feel free to modify and experiment.
