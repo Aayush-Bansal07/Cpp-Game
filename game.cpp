@@ -169,11 +169,19 @@ static float lastY = 300.0f;
 static bool firstMouse = true;
 static float yaw = -90.0f;
 static float pitch = 0.0f;
-static Vec3 cameraPos{0.0f, 0.0f, 4.0f};
+static Vec3 cameraPos{0.0f, 0.6f, 4.0f};  // Start at ground + playerHeight
 static Vec3 cameraFront{0.0f, 0.0f, -1.0f};
 static Vec3 cameraUp{0.0f, 1.0f, 0.0f};
 static float deltaTime = 0.0f;
 static float lastFrame = 0.0f;
+
+// Player physics
+static float velocityY = 0.0f;           // Vertical velocity
+static const float gravity = -20.0f;     // Gravity acceleration
+static const float jumpSpeed = 8.0f;     // Initial jump velocity
+static const float playerHeight = 1.6f;  // Eye height above feet
+static const float groundLevel = -1.0f;  // Y position of ground plane
+static bool isGrounded = false;          // Is player on ground?
 
 static void mouseCallback(GLFWwindow* window, double xposIn, double yposIn) {
     float xpos = static_cast<float>(xposIn);
@@ -369,31 +377,265 @@ int main() {
         uniform vec3 uFogColor;
         uniform float uFogDensity;
 
+        // Cinematic lighting parameters
+        const vec3 sunColor = vec3(1.0, 0.95, 0.85);       // Warm sunlight
+        const vec3 skyColor = vec3(0.4, 0.6, 0.9);         // Cool sky ambient
+        const vec3 groundColor = vec3(0.3, 0.25, 0.2);     // Warm ground bounce
+        const vec3 rimColor = vec3(0.9, 0.85, 0.8);        // Subtle warm rim
+        const float sunIntensity = 1.4;
+        const float ambientIntensity = 0.25;
+        const float rimPower = 3.0;
+        const float rimIntensity = 0.5;
+
         void main() {
             vec3 norm = normalize(Normal);
             vec3 lightDir = normalize(-uLightDir);
             vec3 viewDir = normalize(uViewPos - FragPos);
-            vec3 reflectDir = reflect(-lightDir, norm);
-
-            float diff = max(dot(norm, lightDir), 0.0);
-            float spec = pow(max(dot(viewDir, reflectDir), 0.0), 32.0);
-
-            vec3 ambient = vec3(0.15);
-            vec3 diffuse = diff * vec3(0.8);
-            vec3 specular = spec * vec3(0.6);
-
+            
+            // Blinn-Phong halfway vector for better specular
+            vec3 halfwayDir = normalize(lightDir + viewDir);
+            
+            // Hemisphere ambient lighting (sky above, ground below)
+            float hemisphereBlend = norm.y * 0.5 + 0.5;
+            vec3 ambient = mix(groundColor, skyColor, hemisphereBlend) * ambientIntensity;
+            
+            // Wrapped diffuse for softer shadows
+            float NdotL = dot(norm, lightDir);
+            float wrappedDiff = max((NdotL + 0.3) / 1.3, 0.0);
+            vec3 diffuse = wrappedDiff * sunColor * sunIntensity;
+            
+            // Blinn-Phong specular with roughness
+            float NdotH = max(dot(norm, halfwayDir), 0.0);
+            float shininess = 64.0;
+            float spec = pow(NdotH, shininess);
+            
+            // Fresnel-Schlick approximation for realistic specular falloff
+            float fresnel = pow(1.0 - max(dot(viewDir, halfwayDir), 0.0), 5.0);
+            float F0 = 0.04;  // Base reflectivity for dielectrics
+            float fresnelFactor = F0 + (1.0 - F0) * fresnel;
+            
+            // Apply specular only on lit surfaces
+            float specMask = smoothstep(0.0, 0.1, NdotL);
+            vec3 specular = spec * fresnelFactor * sunColor * specMask * 0.8;
+            
+            // Rim lighting (backlight effect)
+            float rimDot = 1.0 - max(dot(viewDir, norm), 0.0);
+            float rimAmount = pow(rimDot, rimPower);
+            // Enhance rim on surfaces facing away from light (silhouette effect)
+            float rimShadow = 1.0 - max(NdotL, 0.0);
+            vec3 rim = rimAmount * rimShadow * rimColor * rimIntensity;
+            
+            // Sample albedo texture
             vec3 albedo = texture(uTexture, TexCoord).rgb * uColorTint;
-            vec3 lit = (ambient + diffuse + specular) * albedo;
-
+            
+            // Energy conservation: reduce diffuse where specular is strong
+            vec3 diffuseContrib = diffuse * (1.0 - fresnelFactor * 0.5);
+            
+            // Combine lighting
+            vec3 lit = (ambient + diffuseContrib) * albedo + specular + rim * albedo;
+            
+            // Subtle tone mapping for HDR-like feel
+            lit = lit / (lit + vec3(1.0));
+            
+            // Atmospheric fog with distance
             float distanceToCamera = length(uViewPos - FragPos);
             float fogFactor = clamp(exp(-pow(distanceToCamera * uFogDensity, 1.5)), 0.0, 1.0);
             vec3 fogged = mix(uFogColor, lit, fogFactor);
+            
+            // Final gamma correction hint (slight contrast boost)
+            fogged = pow(fogged, vec3(0.95));
 
             FragColor = vec4(fogged, 1.0);
         }
     )";
 
     GLuint program = createProgram(vertexShader, fragmentShader);
+
+    // Skybox shader
+    std::string skyboxVS = R"(
+        #version 330 core
+        layout (location = 0) in vec3 aPos;
+        
+        out vec3 TexCoords;
+        
+        uniform mat4 uProjection;
+        uniform mat4 uView;
+        
+        void main() {
+            TexCoords = aPos;
+            // Remove translation from view matrix (only rotation)
+            mat4 viewNoTranslation = mat4(mat3(uView));
+            vec4 pos = uProjection * viewNoTranslation * vec4(aPos, 1.0);
+            gl_Position = pos.xyww;  // Set z = w so skybox is at max depth
+        }
+    )";
+
+    std::string skyboxFS = R"(
+        #version 330 core
+        out vec4 FragColor;
+        
+        in vec3 TexCoords;
+        
+        uniform samplerCube uSkybox;
+        
+        void main() {
+            vec3 color = texture(uSkybox, TexCoords).rgb;
+            // HDR tone mapping
+            color = color / (color + vec3(1.0));
+            // Gamma correction
+            color = pow(color, vec3(1.0/2.2));
+            FragColor = vec4(color, 1.0);
+        }
+    )";
+
+    GLuint skyboxProgram = createProgram(skyboxVS, skyboxFS);
+
+    // Skybox cube vertices (inside-out cube)
+    float skyboxVertices[] = {
+        // Back face
+        -1.0f,  1.0f, -1.0f,
+        -1.0f, -1.0f, -1.0f,
+         1.0f, -1.0f, -1.0f,
+         1.0f, -1.0f, -1.0f,
+         1.0f,  1.0f, -1.0f,
+        -1.0f,  1.0f, -1.0f,
+        // Front face
+        -1.0f, -1.0f,  1.0f,
+        -1.0f,  1.0f,  1.0f,
+         1.0f,  1.0f,  1.0f,
+         1.0f,  1.0f,  1.0f,
+         1.0f, -1.0f,  1.0f,
+        -1.0f, -1.0f,  1.0f,
+        // Left face
+        -1.0f,  1.0f,  1.0f,
+        -1.0f,  1.0f, -1.0f,
+        -1.0f, -1.0f, -1.0f,
+        -1.0f, -1.0f, -1.0f,
+        -1.0f, -1.0f,  1.0f,
+        -1.0f,  1.0f,  1.0f,
+        // Right face
+         1.0f,  1.0f, -1.0f,
+         1.0f,  1.0f,  1.0f,
+         1.0f, -1.0f,  1.0f,
+         1.0f, -1.0f,  1.0f,
+         1.0f, -1.0f, -1.0f,
+         1.0f,  1.0f, -1.0f,
+        // Top face
+        -1.0f,  1.0f,  1.0f,
+         1.0f,  1.0f,  1.0f,
+         1.0f,  1.0f, -1.0f,
+         1.0f,  1.0f, -1.0f,
+        -1.0f,  1.0f, -1.0f,
+        -1.0f,  1.0f,  1.0f,
+        // Bottom face
+        -1.0f, -1.0f, -1.0f,
+         1.0f, -1.0f, -1.0f,
+         1.0f, -1.0f,  1.0f,
+         1.0f, -1.0f,  1.0f,
+        -1.0f, -1.0f,  1.0f,
+        -1.0f, -1.0f, -1.0f
+    };
+
+    GLuint skyboxVAO, skyboxVBO;
+    glGenVertexArrays(1, &skyboxVAO);
+    glGenBuffers(1, &skyboxVBO);
+    glBindVertexArray(skyboxVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, skyboxVBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(skyboxVertices), skyboxVertices, GL_STATIC_DRAW);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(0);
+
+    // Create procedural HDR cubemap texture
+    GLuint skyboxTexture;
+    glGenTextures(1, &skyboxTexture);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, skyboxTexture);
+
+    const int skySize = 128;
+    std::vector<float> skyFaceData(skySize * skySize * 3);
+
+    // Sun direction (normalized)
+    float sunDirX = 0.4f, sunDirY = 0.6f, sunDirZ = -0.7f;
+    float sunLen = std::sqrt(sunDirX*sunDirX + sunDirY*sunDirY + sunDirZ*sunDirZ);
+    sunDirX /= sunLen; sunDirY /= sunLen; sunDirZ /= sunLen;
+
+    // Generate each cubemap face
+    for (int face = 0; face < 6; ++face) {
+        for (int y = 0; y < skySize; ++y) {
+            for (int x = 0; x < skySize; ++x) {
+                // Convert pixel to direction vector for this face
+                float u = (x + 0.5f) / skySize * 2.0f - 1.0f;
+                float v = (y + 0.5f) / skySize * 2.0f - 1.0f;
+                float dx, dy, dz;
+                
+                switch (face) {
+                    case 0: dx =  1.0f; dy = -v;    dz = -u;    break; // +X
+                    case 1: dx = -1.0f; dy = -v;    dz =  u;    break; // -X
+                    case 2: dx =  u;    dy =  1.0f; dz =  v;    break; // +Y
+                    case 3: dx =  u;    dy = -1.0f; dz = -v;    break; // -Y
+                    case 4: dx =  u;    dy = -v;    dz =  1.0f; break; // +Z
+                    case 5: dx = -u;    dy = -v;    dz = -1.0f; break; // -Z
+                }
+                
+                // Normalize direction
+                float len = std::sqrt(dx*dx + dy*dy + dz*dz);
+                dx /= len; dy /= len; dz /= len;
+                
+                // Calculate sky gradient based on elevation
+                float elevation = dy;  // -1 (down) to 1 (up)
+                
+                // HDR sky colors (values > 1 for HDR)
+                float r, g, b;
+                
+                if (elevation > 0.0f) {
+                    // Sky gradient: horizon to zenith
+                    float t = std::pow(elevation, 0.5f);
+                    // Horizon: warm golden (1.8, 1.4, 0.9)
+                    // Zenith: deep blue (0.2, 0.4, 1.2)
+                    r = 1.8f * (1.0f - t) + 0.2f * t;
+                    g = 1.4f * (1.0f - t) + 0.4f * t;
+                    b = 0.9f * (1.0f - t) + 1.2f * t;
+                } else {
+                    // Ground gradient
+                    float t = std::min(1.0f, -elevation * 2.0f);
+                    // Horizon: warm (1.0, 0.8, 0.6)
+                    // Nadir: dark earth (0.15, 0.12, 0.1)
+                    r = 1.0f * (1.0f - t) + 0.15f * t;
+                    g = 0.8f * (1.0f - t) + 0.12f * t;
+                    b = 0.6f * (1.0f - t) + 0.10f * t;
+                }
+                
+                // Add sun glow
+                float sunDot = dx * sunDirX + dy * sunDirY + dz * sunDirZ;
+                if (sunDot > 0.0f) {
+                    // Sun disc (very bright HDR)
+                    float sunDisc = std::pow(std::max(0.0f, sunDot), 256.0f);
+                    r += sunDisc * 30.0f;
+                    g += sunDisc * 28.0f;
+                    b += sunDisc * 20.0f;
+                    
+                    // Sun glow (softer)
+                    float sunGlow = std::pow(std::max(0.0f, sunDot), 8.0f);
+                    r += sunGlow * 1.5f;
+                    g += sunGlow * 1.2f;
+                    b += sunGlow * 0.6f;
+                }
+                
+                int idx = (y * skySize + x) * 3;
+                skyFaceData[idx + 0] = r;
+                skyFaceData[idx + 1] = g;
+                skyFaceData[idx + 2] = b;
+            }
+        }
+        
+        glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + face, 0, GL_RGB16F,
+                     skySize, skySize, 0, GL_RGB, GL_FLOAT, skyFaceData.data());
+    }
+
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
 
     GLuint texture = 0;
     glGenTextures(1, &texture);
@@ -453,15 +695,20 @@ int main() {
 
         processInput(window, cubeRotation, cubeRotationSpeed);
 
+        // Calculate horizontal movement direction (WASD keys)
         Vec3 movement{0.0f, 0.0f, 0.0f};
         Vec3 right = normalize(cross(cameraFront, cameraUp));
-        if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) movement = add(movement, cameraFront);
-        if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) movement = sub(movement, cameraFront);
-        if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) movement = sub(movement, right);
-        if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) movement = add(movement, right);
-        if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS) movement = add(movement, cameraUp);
-        if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS) movement = sub(movement, cameraUp);
+        
+        // Get forward direction projected onto XZ plane (horizontal only)
+        Vec3 forward = normalize({cameraFront.x, 0.0f, cameraFront.z});
+        Vec3 strafeRight = normalize(cross(forward, cameraUp));
+        
+        if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) movement = add(movement, forward);
+        if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) movement = sub(movement, forward);
+        if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) movement = sub(movement, strafeRight);
+        if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) movement = add(movement, strafeRight);
 
+        // Apply horizontal movement with collision detection
         if (dot(movement, movement) > 0.0f) {
             movement = normalize(movement);
             Vec3 nextPos = add(cameraPos, mul(movement, cameraSpeed * deltaTime));
@@ -480,6 +727,28 @@ int main() {
             }
         }
 
+        // Jump input (only when grounded)
+        if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS && isGrounded) {
+            velocityY = jumpSpeed;
+            isGrounded = false;
+        }
+
+        // Apply gravity to vertical velocity
+        velocityY += gravity * deltaTime;
+
+        // Apply vertical velocity to camera position
+        cameraPos.y += velocityY * deltaTime;
+
+        // Ground collision - player's feet position is cameraPos.y - playerHeight
+        float feetY = cameraPos.y - playerHeight;
+        if (feetY <= groundLevel) {
+            cameraPos.y = groundLevel + playerHeight;
+            velocityY = 0.0f;
+            isGrounded = true;
+        } else {
+            isGrounded = false;
+        }
+
         int width = 1600;
         int height = 900;
         glfwGetFramebufferSize(window, &width, &height);
@@ -491,6 +760,18 @@ int main() {
         float aspect = static_cast<float>(width) / static_cast<float>(height);
         Mat4 projection = perspective(45.0f * 3.14159265f / 180.0f, aspect, 0.1f, 140.0f);
         Mat4 view = lookAt(cameraPos, add(cameraPos, cameraFront), cameraUp);
+
+        // Render skybox first (with depth write disabled, depth test LEQUAL)
+        glDepthFunc(GL_LEQUAL);
+        glUseProgram(skyboxProgram);
+        glUniformMatrix4fv(glGetUniformLocation(skyboxProgram, "uView"), 1, GL_FALSE, view.m);
+        glUniformMatrix4fv(glGetUniformLocation(skyboxProgram, "uProjection"), 1, GL_FALSE, projection.m);
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_CUBE_MAP, skyboxTexture);
+        glUniform1i(glGetUniformLocation(skyboxProgram, "uSkybox"), 0);
+        glBindVertexArray(skyboxVAO);
+        glDrawArrays(GL_TRIANGLES, 0, 36);
+        glDepthFunc(GL_LESS);  // Restore default depth function
 
         glUseProgram(program);
         glUniform3f(glGetUniformLocation(program, "uLightDir"), -0.25f, -1.0f, -0.35f);
@@ -529,8 +810,12 @@ int main() {
     glDeleteBuffers(1, &groundVBO);
     glDeleteVertexArrays(1, &VAO);
     glDeleteBuffers(1, &VBO);
+    glDeleteVertexArrays(1, &skyboxVAO);
+    glDeleteBuffers(1, &skyboxVBO);
     glDeleteProgram(program);
+    glDeleteProgram(skyboxProgram);
     glDeleteTextures(1, &texture);
+    glDeleteTextures(1, &skyboxTexture);
     glfwTerminate();
     return 0;
 }

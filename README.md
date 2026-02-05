@@ -74,4 +74,4 @@ game.exe    # Windows
 
 ## License
 
-No License 😔
+This is a simple demonstration project for educational purposes.
