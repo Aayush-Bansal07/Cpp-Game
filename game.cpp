@@ -255,6 +255,7 @@ int main() {
     }
 
     glEnable(GL_DEPTH_TEST);
+    glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
 
     float vertices[] = {
         // positions          // normals           // texcoords
@@ -373,13 +374,14 @@ int main() {
         uniform vec3 uLightDir;
         uniform vec3 uViewPos;
         uniform sampler2D uTexture;
+        uniform samplerCube uEnvMap;
         uniform vec3 uColorTint;
         uniform vec3 uFogColor;
         uniform float uFogDensity;
+        uniform mat4 uView;
 
         // Cinematic lighting parameters
         const vec3 sunColor = vec3(1.0, 0.95, 0.85);       // Warm sunlight
-        const vec3 skyColor = vec3(0.4, 0.6, 0.9);         // Cool sky ambient
         const vec3 groundColor = vec3(0.3, 0.25, 0.2);     // Warm ground bounce
         const vec3 rimColor = vec3(0.9, 0.85, 0.8);        // Subtle warm rim
         const float sunIntensity = 1.4;
@@ -397,7 +399,9 @@ int main() {
             
             // Hemisphere ambient lighting (sky above, ground below)
             float hemisphereBlend = norm.y * 0.5 + 0.5;
-            vec3 ambient = mix(groundColor, skyColor, hemisphereBlend) * ambientIntensity;
+            vec3 envDir = normalize(mat3(uView) * norm);
+            vec3 skyAmbient = texture(uEnvMap, envDir).rgb;
+            vec3 ambient = mix(groundColor, skyAmbient, hemisphereBlend) * ambientIntensity;
             
             // Wrapped diffuse for softer shadows
             float NdotL = dot(norm, lightDir);
@@ -550,7 +554,7 @@ int main() {
     glGenTextures(1, &skyboxTexture);
     glBindTexture(GL_TEXTURE_CUBE_MAP, skyboxTexture);
 
-    const int skySize = 128;
+    const int skySize = 256;
     std::vector<float> skyFaceData(skySize * skySize * 3);
 
     // Sun direction (normalized)
@@ -784,6 +788,9 @@ int main() {
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, texture);
         glUniform1i(glGetUniformLocation(program, "uTexture"), 0);
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_CUBE_MAP, skyboxTexture);
+        glUniform1i(glGetUniformLocation(program, "uEnvMap"), 1);
 
         glBindVertexArray(groundVAO);
         Mat4 groundModel = multiply(translate({0.0f, -1.0f, 0.0f}), scale(groundScale));
