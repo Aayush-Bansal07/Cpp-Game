@@ -693,6 +693,20 @@ const BUILDING_COLORS = {
   'Academic Block': { primary: '#a855f7', secondary: '#7c3aed', glow: 'rgba(168,85,247,0.4)' },
 };
 
+// Decorative map objects for a richer, high-resolution feel
+const MAP_OBJECTS = [
+  { id: 'trees-1', label: 'Palm Grove', icon: '🌴', x: 12, y: 24, size: 'text-2xl' },
+  { id: 'trees-2', label: 'Green Patch', icon: '🌳', x: 28, y: 70, size: 'text-2xl' },
+  { id: 'fountain', label: 'Fountain', icon: '⛲', x: 52, y: 38, size: 'text-2xl' },
+  { id: 'bench', label: 'Bench', icon: '🪑', x: 68, y: 62, size: 'text-xl' },
+  { id: 'bus-stop', label: 'Bus Stop', icon: '🚏', x: 84, y: 30, size: 'text-xl' },
+  { id: 'parking', label: 'Parking', icon: '🅿️', x: 90, y: 74, size: 'text-xl' },
+  { id: 'cafe', label: 'Coffee Kiosk', icon: '☕', x: 42, y: 18, size: 'text-xl' },
+  { id: 'statue', label: 'Campus Statue', icon: '🗿', x: 36, y: 50, size: 'text-xl' },
+  { id: 'sports', label: 'Sports Court', icon: '🏀', x: 16, y: 58, size: 'text-xl' },
+  { id: 'wifi', label: 'Wi-Fi Hub', icon: '📡', x: 58, y: 78, size: 'text-xl' }
+];
+
 const BentoMap = ({ locations = [], events = [], selected, onSelect, fullScreen = false }) => {
   const safeLocations = Array.isArray(locations) ? locations : INITIAL_LOCATIONS;
   const safeEvents = Array.isArray(events) ? events : [];
@@ -709,10 +723,12 @@ const BentoMap = ({ locations = [], events = [], selected, onSelect, fullScreen 
       <div className="absolute inset-0 opacity-15">
         <div className="absolute inset-0" style={{
           backgroundImage: `
-          linear-gradient(rgba(124,58,237,0.3) 1px, transparent 1px),
-          linear-gradient(90deg, rgba(124,58,237,0.3) 1px, transparent 1px)
+          linear-gradient(rgba(124,58,237,0.28) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(124,58,237,0.28) 1px, transparent 1px),
+          linear-gradient(rgba(99,102,241,0.16) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(99,102,241,0.16) 1px, transparent 1px)
         `,
-          backgroundSize: '50px 50px'
+          backgroundSize: '60px 60px, 60px 60px, 20px 20px, 20px 20px'
         }} />
       </div>
 
@@ -757,6 +773,31 @@ const BentoMap = ({ locations = [], events = [], selected, onSelect, fullScreen 
         <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-vibe-cyan/20 rounded-full blur-[100px]" />
       </div>
 
+      {/* Map Objects Layer */}
+      <div className="absolute inset-0 z-10 pointer-events-none">
+        {MAP_OBJECTS.map((obj) => (
+          <div
+            key={obj.id}
+            className="absolute"
+            style={{ left: `${obj.x}%`, top: `${obj.y}%` }}
+          >
+            <div className="relative group pointer-events-auto">
+              <div className={cn(
+                "flex items-center justify-center w-8 h-8 rounded-full",
+                "bg-white/5 border border-white/10 shadow-[0_0_16px_rgba(255,255,255,0.08)]",
+                "backdrop-blur-md",
+                obj.size
+              )}>
+                <span className="drop-shadow">{obj.icon}</span>
+              </div>
+              <div className="absolute left-1/2 -translate-x-1/2 mt-2 whitespace-nowrap text-[10px] px-2 py-1 rounded-md bg-black/70 text-white/80 border border-white/10 opacity-0 group-hover:opacity-100 transition">
+                {obj.label}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
       {/* Map Title */}
       <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20">
         <div className="px-5 py-2 bg-black/70 backdrop-blur-xl rounded-xl border border-white/10">
@@ -767,7 +808,7 @@ const BentoMap = ({ locations = [], events = [], selected, onSelect, fullScreen 
       </div>
 
       {/* Map Container - Simple Flex Grid */}
-      <div className={cn("absolute inset-0 pt-16 pb-16 px-4 flex items-center justify-center", fullScreen && "pr-52 md:pr-60")}>
+      <div className={cn("absolute inset-0 pt-16 pb-16 px-4 flex items-center justify-center z-20", fullScreen && "pr-52 md:pr-60")}>
         <div className="grid grid-cols-3 grid-rows-2 gap-3 md:gap-6 max-w-4xl w-full">
           {/* Render all 5 locations from INITIAL_LOCATIONS directly */}
           {INITIAL_LOCATIONS.map((loc) => (
